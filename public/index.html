@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Random FaceTime (Video và Âm thanh)</title>
+</head>
+<body>
+    <h1>Random FaceTime (Video và Âm thanh)</h1>
+    <button id="start">Bắt đầu cuộc gọi video</button>
+    <video id="localVideo" autoplay playsinline muted></video> <!-- Video của bạn không có âm thanh -->
+    <video id="remoteVideo" autoplay playsinline></video>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const startButton = document.getElementById('start');
+        const localVideo = document.getElementById('localVideo');
+        const remoteVideo = document.getElementById('remoteVideo');
+
+        let localStream;
+        let peerConnection;
+        const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+        startButton.addEventListener('click', async () => {
+            // Bắt cả video và âm thanh
+            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            localVideo.srcObject = localStream;
+            socket.emit('join');
+        });
+
+        socket.on('peer', async ({ peerId }) => {
+            peerConnection = new RTCPeerConnection(config);
+
+            // Thêm tất cả các track (video và âm thanh) vào kết nối peer
+            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+            peerConnection.onicecandidate = ({ candidate }) => {
+                if (candidate) {
+                    socket.emit('candidate', { peerId, candidate });
+                }
+            };
+
+            peerConnection.ontrack = ({ streams: [stream] }) => {
+                remoteVideo.srcObject = stream;
+            };
+
+            // Kiểm tra nếu peerId là đối tác gọi trước
+            if (peerConnection.signalingState === 'stable') {
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                socket.emit('offer', { peerId, offer });
+            }
+        });
+
+        socket.on('offer', async ({ offer }) => {
+            peerConnection = new RTCPeerConnection(config);
+
+            // Thêm tất cả các track (video và âm thanh) vào kết nối peer
+            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+            peerConnection.onicecandidate = ({ candidate }) => {
+                if (candidate) {
+                    socket.emit('candidate', { peerId: socket.id, candidate });
+                }
+            };
+
+            peerConnection.ontrack = ({ streams: [stream] }) => {
+                remoteVideo.srcObject = stream;
+            };
+
+            await peerConnection.setRemoteDescription(offer);
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            socket.emit('answer', { peerId: socket.id, answer });
+        });
+
+        socket.on('answer', async ({ answer }) => {
+            await peerConnection.setRemoteDescription(answer);
+        });
+
+        socket.on('candidate', async ({ candidate }) => {
+            await peerConnection.addIceCandidate(candidate);
+        });
+
+        socket.on('peerDisconnected', ({ peerId }) => {
+            if (peerConnection && peerConnection.peerId === peerId) {
+                peerConnection.close();
+                remoteVideo.srcObject = null;
+                alert('Đối phương đã rời khỏi cuộc gọi');
+            }
+        });
+    </script>
+</body>
+</html>

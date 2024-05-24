@@ -1,0 +1,16 @@
+{
+  "name": "x",
+  "version": "1.0.0",
+  "description": "The place people can online chat or facetime with random other people",
+  "main": "x.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "fng",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.19.2",
+    "http": "^0.0.1-security",
+    "socket.io": "^4.7.5"
+  }
+}
