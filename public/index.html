@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Random FaceTime (Video và Âm thanh)</title>
 </head>
+
 <body>
     <h1>Random FaceTime (Video và Âm thanh)</h1>
     <button id="start">Bắt đầu cuộc gọi video</button>
@@ -36,7 +38,7 @@
 
             peerConnection.onicecandidate = ({ candidate }) => {
                 if (candidate) {
-                    socket.emit('candidate', { peerId, candidate });
+                    socket.emit('candidate', { peerId: socket.id, candidate });
                 }
             };
 
@@ -79,7 +81,13 @@
         });
 
         socket.on('candidate', async ({ candidate }) => {
-            await peerConnection.addIceCandidate(candidate);
+            try {
+                if (candidate) {
+                    await peerConnection.addIceCandidate(candidate);
+                }
+            } catch (e) {
+                console.error('Error adding received ice candidate', e);
+            }
         });
 
         socket.on('peerDisconnected', ({ peerId }) => {
@@ -91,4 +99,5 @@
         });
     </script>
 </body>
+
 </html>
