@@ -1,56 +1,40 @@
+// server.js
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-const PORT = process.env.PORT || 3000;
+let users = [];
+app.use(express.static(path.join(__dirname, 'public')));
+io.on('connection', socket => {
+    if (users.length < 2) {
+        users.push(socket.id);
 
-// Serve static files from public directory
-app.use(express.static('public'));
-
-let waitingUser = null;
-
-io.on('connection', (socket) => {
-    console.log('A user connected: ' + socket.id);
-
-    socket.on('join', () => {
-        if (waitingUser) {
-            // If there's a waiting user, pair them
-            const peerId = waitingUser;
-            waitingUser = null;
-            io.to(socket.id).emit('peer', { peerId });
-            io.to(peerId).emit('peer', { peerId: socket.id });
-        } else {
-            // Otherwise, put this user in the waiting queue
-            waitingUser = socket.id;
+        if (users.length === 2) {
+            io.to(users[0]).emit('call', users[1]);
+            io.to(users[1]).emit('call', users[0]);
         }
-    });
+    }
 
-    socket.on('offer', (data) => {
+    socket.on('offer', data => {
         io.to(data.peerId).emit('offer', data.offer);
     });
 
-    socket.on('answer', (data) => {
+    socket.on('answer', data => {
         io.to(data.peerId).emit('answer', data.answer);
     });
 
-    socket.on('candidate', (data) => {
+    socket.on('candidate', data => {
         io.to(data.peerId).emit('candidate', data.candidate);
     });
 
     socket.on('disconnect', () => {
-        console.log('A user disconnected: ' + socket.id);
-        if (waitingUser === socket.id) {
-            waitingUser = null;
-        } else {
-            socket.broadcast.emit('peerDisconnected', { peerId: socket.id });
-        }
+        users = users.filter(userId => userId !== socket.id);
     });
 });
 
-server.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+server.listen(3000, () => console.log('Server is running on port 3000'));
